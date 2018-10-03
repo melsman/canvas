@@ -1,8 +1,9 @@
-# Canvas libbrary for Futhark
+# Canvas library for Futhark
 
-This library provides a simple canvas library for use with
+This library provides simple canvas functionality for use with
 Futhark. The library demonstrates that it is possible to construct
-objects in parallel using flattening techniques
+objects in parallel using flattening techniques. A demonstration of
+the library is available in the `demo` directory.
 
 ## Statistics
 
