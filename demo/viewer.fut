@@ -7,13 +7,15 @@ type colour = argb.colour
 
 type state = { lines: [](line.t,colour)
              , triangles: [](triangle.t,colour)
+             , angle: f32
              , h: i32
              , w: i32 }
 
 module engine = minstd_rand
 module distribution = uniform_int_distribution i32 engine
 
-let mk_lines (h:i32) (w:i32) (n:i32) (rng:engine.rng) : ([n](line.t,colour), engine.rng) =
+let mk_lines (h:i32) (w:i32) (n:i32) (rng:engine.rng)
+    : ([n](line.t,colour), engine.rng) =
   let rngs = engine.split_rng n rng
   let pairs = map (\ rng ->
                    let (rng,a) = distribution.rand (0, w - w / 10) rng
@@ -27,7 +29,9 @@ let mk_lines (h:i32) (w:i32) (n:i32) (rng:engine.rng) : ([n](line.t,colour), eng
   in (res, engine.join_rng rngs)
 
 type x = (i32,i32)
-let mkt (p1:x,p2:x,p3:x) = (({x=p1.1,y=p1.2},{x=p2.1,y=p2.2},{x=p3.1,y=p3.2}),argb.red)
+let mkt (p1:x,p2:x,p3:x) =
+  (({x=p1.1,y=p1.2},{x=p2.1,y=p2.2},{x=p3.1,y=p3.2}),argb.red)
+
 entry load_image (h:i32) (w:i32) : state =
   let seed = 43.0
   let rng = engine.rng_from_seed [i32.u32 (f32.to_bits seed)]
@@ -41,19 +45,22 @@ entry load_image (h:i32) (w:i32) : state =
      --    [((58,20),(2,3)),((27,3),(2,28)),((5,20),(20,20)),
      --     ((4,10),(6,25)),((26,25),(26,2)),((58,20),(52,3))]
      , triangles
+     , angle = 0.0
      , h
      , w }
 
 entry render (state: state): [][]i32 = unsafe
   let grid = canvas.mk state.h state.w
-  let grp = (canvas.triangles state.triangles) canvas.&&& (canvas.lines state.lines)
+  let triangles = map (\(t,c) -> (triangle.rotate {x=100,y=100} state.angle t,c)) state.triangles
+  let lines = map (\(l,c) -> (line.rotate {x=200,y=200} (1.2*state.angle) l,c)) state.lines
+  let grp = (canvas.triangles triangles) canvas.&&&
+            (canvas.lines lines)
   in canvas.raw(canvas.draw grp grid)
 
 entry advance (state: state): state =
-  {lines=map (\ (({x=a,y=b},{x=c,y=d}),col) ->
-              let a = a +1
-              let c = c +1
-              in (({x=a,y=b},{x=c,y=d}),col)) state.lines
-  , triangles=map (\(t,c) -> (triangle.transl {x=1,y=0} t,c)) state.triangles
+  { lines=state.lines
+  , triangles=state.triangles
+  , angle = state.angle + 0.01
   , h=state.h
-  , w=state.w }
+  , w=state.w
+    }

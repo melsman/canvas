@@ -1,5 +1,6 @@
 import "/futlib/math"
-import "/../lib/github.com/athas/matte/colour"
+import "../../athas/matte/colour"
+import "../../diku-dk/segmented/segmented"
 
 module type point = {
   type t = {x:i32,y:i32}
@@ -25,7 +26,15 @@ module type triangle = {
 
 module type canvas = {
   type t[h][w]
+
+  -- | The expression `mk h w` constructs a canvas of height `h` and
+  -- width `w`.
+
   val mk         : (h:i32) -> (w:i32) -> *(t[h][w])
+
+  -- | The expression `raw c` returns the underlying array for the
+  -- canvas `c`.
+
   val raw [h][w] : t[h][w] -> [h][w]i32
 
   module point : point
@@ -46,14 +55,22 @@ module type canvas = {
 
 module point : point = {
   type t = {x:i32,y:i32}
+
+  -- | The expression `rotate o d p` returns a point specified as
+  -- point `p` rotated `d` radians around the origin point `o`.
+
   let rotate (o:t) (d:f32) (p:t) : t =
     let p = {x=p.x-o.x,y=p.y-o.y}
-    let x = f32.(i32 p.x * cos d - i32 p.y * sin d)
-    let y = f32.(i32 p.y * cos d + i32 p.x * sin d)
-    let p = i32.({x=f32 x,y=f32 y})
-    in {x=p.x+o.x,y=p.y+o.y}
-  let transl (o:t) (p:t) : t =
-    {x=o.x+p.x,y=o.y+p.y}
+    let x = f32.((i32 p.x) * cos d - (i32 p.y) * sin d)
+    let y = f32.((i32 p.y) * cos d + (i32 p.x) * sin d)
+    in i32.({x=f32 x + o.x,
+             y=f32 y + o.y})
+
+  -- | The expression `transl v p` returns the point specified as
+  -- point `p` translated according to the vector `v`.
+
+  let transl (v:t) (p:t) : t =
+    {x=v.x+p.x,y=v.y+p.y}
 }
 
 module line : line with point = point.t = {
@@ -109,36 +126,12 @@ module canvas : canvas with colour = argb.colour = {
             ({points=p2,lines=l2,triangles=t2}:grp) : grp =
     {points=p1++p2,lines=l1++l2,triangles=t1++t2}
 
-  let lines (xs:[](line.t,colour)) : grp = {lines=xs,points=[],triangles=[]}
-  let triangles (xs:[](triangle.t,colour)) : grp = {triangles=xs,lines=[],points=[]}
-  let points (xs: [](point.t,colour)) : grp = {points=xs,triangles=[],lines=[]}
-
-  -- Segmented utlity functions (memo: instead, refer to segmented library)
-
-  let sgm_scan_add [n] (vals:[n]i32) (flags:[n]bool) : [n]i32 =
-    let pairs = scan (\(v1,f1) (v2,f2) ->
-                      let f = f1 || f2
-                      let v = if f2 then v2 else v1+v2
-                      in (v,f) ) (0,false) (zip vals flags)
-    let (res,_) = unzip pairs
-    in res
-
-  let repl_idx [n] (reps:[n]i32) : []i32 =
-    let s1 = scan (+) 0 reps
-    let s2 = map (\i -> if i==0 then 0 else unsafe s1[i-1]) (iota n)
-    let tmp = scatter (replicate (unsafe s1[n-1]) 0) s2 (iota n)
-    let flags = map (>0) tmp
-    in sgm_scan_add tmp flags
-
-  let sgm_iota [n] (flags:[n]bool) : [n]i32 =
-    let iotas = sgm_scan_add (replicate n 1) flags
-    in map (\x->x-1) iotas
-
-  let expand 'a 'b (sz: a -> i32) (get: a -> i32 -> b) (arr:[]a) : []b =
-    let szs = map sz arr
-    let idxs = repl_idx szs
-    let iotas = sgm_iota (map2 (!=) idxs (rotate (i32.negate 1) idxs))
-    in map2 (\i j -> get arr[i] j) idxs iotas
+  let lines (xs:[](line.t,colour)) : grp =
+    {lines=xs,points=[],triangles=[]}
+  let triangles (xs:[](triangle.t,colour)) : grp =
+    {triangles=xs,lines=[],points=[]}
+  let points (xs: [](point.t,colour)) : grp =
+    {points=xs,triangles=[],lines=[]}
 
   -- Converting lines to points (flattened)
 
@@ -154,10 +147,10 @@ module canvas : canvas with colour = argb.colour = {
   -- Parallel flattened algorithm for turning lines into
   -- points, using expansion.
 
-  let points_in_line ((({x=x1,y=y1},{x=x2,y=y2}),_):(line.t,colour)) : i32 =
+  let points_in_line ((({x=x1,y=y1},{x=x2,y=y2}),_):(line.t,colour)) =
     i32.(1 + max (abs(x2-x1)) (abs(y2-y1)))
 
-  let get_point_in_line (((p1,p2),c):(line.t,colour)) (i:i32) : (point.t,colour) =
+  let get_point_in_line (((p1,p2),c):(line.t,colour)) (i:i32) =
     if i32.abs(p1.x-p2.x) > i32.abs(p1.y-p2.y)
     then let dir = compare (p1.x) (p2.x)
          let sl = slo p1 p2
@@ -192,7 +185,7 @@ module canvas : canvas with colour = argb.colour = {
     in if dy == 0 then f32.i32 0
        else f32.i32 dx f32./ f32.i32 dy
 
-  let get_line_in_triangle (((p,q,r),c):(triangle.t,colour)) (i:i32) : (line.t,colour) =
+  let get_line_in_triangle (((p,q,r),c):(triangle.t,colour)) (i:i32) =
     let y = p.y + i
     in if i <= q.y - p.y then     -- upper half
          let sl1 = dxdy p q
@@ -208,20 +201,22 @@ module canvas : canvas with colour = argb.colour = {
          let x2 = r.x - i32.f32(sl2 * f32.i32 dy)
          in (({x=x1,y},{x=x2,y}),c)
 
-  let lines_of_triangles (xs:[](triangle.t,colour)) : [](line.t,colour) =
+  let lines_of_triangles (xs:[](triangle.t,colour)) =
     expand lines_in_triangle get_line_in_triangle
            (map normalize xs)
 
   -- Write to grid
-  let update [h][w][n] (ps:[n](point.t,colour)) (grid:[h][w]i32) : [h][w]i32 =
-    let ps = filter (\ ((p,_):(point.t,colour)) -> (0 <= p.x && p.x < w && 0 <= p.y && p.y < h)) ps
+  let update [h][w][n] (ps:[n](point.t,colour))
+                       (grid:[h][w]i32) : [h][w]i32 =
+    let ps = filter (\ ((p,_):(point.t,colour)) ->
+                     (0 <= p.x && p.x < w && 0 <= p.y && p.y < h)) ps
     let ps = map (\ (p,c) -> (w*p.y+p.x,c)) ps
     let flatgrid = flatten grid
     let is = map (.1) ps
     let cs = map (.2) ps
     in unflatten h w (scatter (copy flatgrid) is cs)
 
-  let draw [h][w] ({points,lines,triangles}:grp) (grid: (t[h][w])) : (t[h][w]) =
+  let draw [h][w] ({points,lines,triangles}:grp) (grid: (t[h][w])) :(t[h][w]) =
     let ls = lines_of_triangles triangles
     let ps = points_of_lines (ls ++ lines)
     in update (points ++ ps) grid

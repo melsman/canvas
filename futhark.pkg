@@ -3,4 +3,5 @@ package github.com/melsman/canvas
 require {
   github.com/athas/matte 0.1.1 #24f332e6ff8b5872b950cfcbead9b2f7c6571490
   github.com/diku-dk/cpprandom 1.1.2 #0162fd2640606b7f03c56eaebebbc3c14529b207
+  github.com/diku-dk/segmented 0.2.1 #7610c7388aee5a12df3419e290e8695d1be50610
 }

@@ -67,7 +67,7 @@ state = new_state()
 
 running=True
 last=time.time()
-desired_fps=100
+desired_fps=600
 while running:
     advance(state)
     if ((time.time()-last) > (1.0/desired_fps)):
